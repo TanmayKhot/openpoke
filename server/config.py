@@ -71,6 +71,10 @@ class Settings(BaseModel):
     conversation_summary_threshold: int = Field(default=100)
     conversation_summary_tail_size: int = Field(default=10)
 
+    # LLM Performance Optimization
+    conversation_cache_mb: int = Field(default=512)
+    conversation_cache_max_entries: int = Field(default=100)
+
     @property
     def cors_allow_origins(self) -> List[str]:
         """Parse CORS origins from comma-separated string."""

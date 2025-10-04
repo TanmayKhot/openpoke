@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - used for type checkers only
     from .summarization import WorkingMemoryLog
+    from .cache import ConversationCache
 
 
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
@@ -58,12 +59,29 @@ class ConversationLog:
         self._lock = threading.Lock()
         self._ensure_directory()
         self._working_memory_log = _resolve_working_memory_log()
+        self._cache = None  # Lazy initialization
 
     def _ensure_directory(self) -> None:
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("conversation log directory creation failed", extra={"error": str(exc)})
+
+    def _get_cache(self) -> "ConversationCache":
+        """Get conversation cache instance (lazy initialization)."""
+        if self._cache is None:
+            from .cache import get_conversation_cache
+            self._cache = get_conversation_cache()
+        return self._cache
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate conversation cache when new messages are added."""
+        try:
+            cache = self._get_cache()
+            cache.invalidate_conversation("default")
+            logger.debug("conversation cache invalidated after new message")
+        except Exception as exc:
+            logger.debug("failed to invalidate cache", extra={"error": str(exc)})
 
     def _append(self, tag: str, payload: str) -> str:
         timestamp = now_in_user_timezone("%Y-%m-%d %H:%M:%S")
@@ -136,14 +154,17 @@ class ConversationLog:
     def record_user_message(self, content: str) -> None:
         timestamp = self._append("user_message", content)
         self._working_memory_log.append_entry("user_message", content, timestamp)
+        self._invalidate_cache()
 
     def record_agent_message(self, content: str) -> None:
         timestamp = self._append("agent_message", content)
         self._working_memory_log.append_entry("agent_message", content, timestamp)
+        self._invalidate_cache()
 
     def record_reply(self, content: str) -> None:
         timestamp = self._append("poke_reply", content)
         self._working_memory_log.append_entry("poke_reply", content, timestamp)
+        self._invalidate_cache()
 
     def record_wait(self, reason: str) -> None:
         """Record a wait marker that should not reach the user-facing chat history."""
@@ -173,6 +194,18 @@ class ConversationLog:
             )
 
     def to_chat_messages(self) -> List[ChatMessage]:
+        """Get chat messages, using cache when available."""
+        # Try to get from cache first
+        try:
+            cache = self._get_cache()
+            cached_messages = cache.get_conversation("default")
+            if cached_messages:
+                logger.debug("using cached conversation messages", extra={"count": len(cached_messages)})
+                return cached_messages
+        except Exception as exc:
+            logger.debug("cache unavailable, falling back to disk", extra={"error": str(exc)})
+        
+        # Fallback to disk loading
         messages: List[ChatMessage] = []
         for tag, timestamp, payload in self.iter_entries():
             normalized_timestamp = timestamp or None

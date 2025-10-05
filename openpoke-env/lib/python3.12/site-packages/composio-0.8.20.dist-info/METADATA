@@ -1,0 +1,35 @@
+Metadata-Version: 2.4
+Name: composio
+Version: 0.8.20
+Summary: SDK for integrating Composio with your applications.
+Home-page: https://github.com/composiohq/composio
+Author: Composio
+Author-email: tech@composio.dev
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9,<4
+Description-Content-Type: text/markdown
+Requires-Dist: pysher>=1.0.8
+Requires-Dist: pydantic>=2.6.4
+Requires-Dist: composio-client>=1.10.0
+Requires-Dist: typing-extensions>=4.0.0
+Requires-Dist: openai
+Dynamic: author
+Dynamic: author-email
+Dynamic: home-page
+Dynamic: requires-python
+
+# Composio SDK
+
+## Setup
+
+```bash
+make env
+source .venv/bin/activate
+```
+
+## Usage
+
+> 📌  **NOTE**
+> Ensure you've set the `COMPOSIO_API_KEY` and the `OPENAI_API_KEY` for these examples to work.

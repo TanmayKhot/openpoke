@@ -74,6 +74,8 @@ class Settings(BaseModel):
     # LLM Performance Optimization
     conversation_cache_mb: int = Field(default=512)
     conversation_cache_max_entries: int = Field(default=100)
+    response_cache_mb: int = Field(default=256)
+    response_cache_max_entries: int = Field(default=500)
 
     @property
     def cors_allow_origins(self) -> List[str]:

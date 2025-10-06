@@ -22,7 +22,6 @@ def get_user_timezone_name(default: str = "UTC") -> str:
 
 def resolve_user_timezone(default: str = "UTC") -> ZoneInfo:
     """Resolve the stored timezone to a ZoneInfo, falling back to default on error."""
-
     tz_name = get_user_timezone_name(default)
     try:
         return ZoneInfo(tz_name)

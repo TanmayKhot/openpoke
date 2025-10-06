@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 
 from ..services.conversation.cache import get_conversation_cache
+from ..services.conversation.log import get_conversation_log
 
 
 router = APIRouter()
@@ -50,7 +51,6 @@ async def preload_cache() -> Dict[str, str]:
     """Preload conversation into cache."""
     try:
         cache = get_conversation_cache()
-        from ..services.conversation.log import get_conversation_log
         conversation_log = get_conversation_log()
         messages = conversation_log.to_chat_messages()
         cache.set_conversation("default", messages)
@@ -92,3 +92,69 @@ async def inspect_cache() -> Dict[str, Any]:
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to inspect cache: {str(exc)}")
+
+
+@router.get("/cache/response-test")
+def test_response_cache() -> Dict[str, str]:
+    """Test response cache functionality."""
+    try:
+        from ..openrouter_client.client import get_cache_stats
+        stats = get_cache_stats()
+        return {"status": "success", "stats": str(stats)}
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
+@router.get("/cache/response-stats")
+def get_response_cache_stats() -> Dict[str, Any]:
+    """Get response cache statistics."""
+    try:
+        from ..openrouter_client.client import get_cache_stats
+        stats = get_cache_stats()
+        
+        return {
+            "entries_count": stats["active_entries"],
+            "memory_usage_mb": 0.0,  # Simple cache doesn't track memory
+            "memory_limit_mb": 0.0,
+            "memory_usage_percent": 0.0,
+            "total_accesses": 0,  # Simple cache doesn't track accesses
+            "avg_access_count": 0.0,
+            "cache_hit_rate": 0.0,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to get response cache stats: {str(exc)}")
+
+
+@router.post("/cache/response-clear")
+def clear_response_cache_endpoint() -> Dict[str, str]:
+    """Clear response cache."""
+    try:
+        from ..openrouter_client.client import clear_response_cache
+        clear_response_cache()
+        
+        return {"message": "Response cache cleared successfully"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to clear response cache: {str(exc)}")
+
+
+@router.get("/cache/response-inspect")
+def inspect_response_cache() -> Dict[str, Any]:
+    """Inspect detailed response cache contents and data."""
+    try:
+        from ..openrouter_client.client import get_cache_stats
+        stats = get_cache_stats()
+        
+        return {
+            "cache_stats": stats,
+            "cache_type": "hybrid_response_cache",
+            "description": "Production-grade hybrid response cache with intelligent policy decisions",
+            "features": [
+                "Tool-based caching",
+                "Intent-based caching", 
+                "Content pattern analysis",
+                "Conservative default policies",
+                "Automatic TTL management"
+            ]
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to inspect response cache: {str(exc)}")

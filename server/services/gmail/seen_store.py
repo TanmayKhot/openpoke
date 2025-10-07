@@ -116,4 +116,14 @@ class GmailSeenStore:
             )
 
 
-__all__ = ["GmailSeenStore"]
+_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+_GMAIL_SEEN_PATH = _DATA_DIR / "gmail_seen.json"
+
+_gmail_seen_store = GmailSeenStore(_GMAIL_SEEN_PATH)
+
+
+def get_gmail_seen_store() -> GmailSeenStore:
+    return _gmail_seen_store
+
+
+__all__ = ["GmailSeenStore", "get_gmail_seen_store"]

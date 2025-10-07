@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
-from .agent import build_system_prompt, prepare_message_with_history
+from .agent import build_system_prompt, prepare_message_with_history, prepare_message_with_smart_context
 from .tools import ToolResult, get_tool_schemas, handle_tool_call
 from ...config import get_settings
 from ...services.conversation import get_conversation_log, get_working_memory_log
@@ -66,13 +66,23 @@ class InteractionAgentRuntime:
         """Handle a user-authored message."""
 
         try:
-            transcript_before = self._load_conversation_transcript()
+            # Load conversation messages for smart context optimization
+            messages = self.conversation_log.to_chat_messages()
             self.conversation_log.record_user_message(user_message)
 
             system_prompt = build_system_prompt()
-            messages = prepare_message_with_history(
-                user_message, transcript_before, message_type="user"
-            )
+            
+            # Use smart context optimization if enabled
+            if self.settings.context_optimization_enabled:
+                messages = prepare_message_with_smart_context(
+                    user_message, messages, message_type="user"
+                )
+            else:
+                # Fallback to traditional transcript-based approach
+                transcript_before = self._load_conversation_transcript()
+                messages = prepare_message_with_history(
+                    user_message, transcript_before, message_type="user"
+                )
 
             logger.info("Processing user message through interaction agent")
             summary = await self._run_interaction_loop(system_prompt, messages)
@@ -101,13 +111,23 @@ class InteractionAgentRuntime:
         """Process a status update emitted by an execution agent."""
 
         try:
-            transcript_before = self._load_conversation_transcript()
+            # Load conversation messages for smart context optimization
+            messages = self.conversation_log.to_chat_messages()
             self.conversation_log.record_agent_message(agent_message)
 
             system_prompt = build_system_prompt()
-            messages = prepare_message_with_history(
-                agent_message, transcript_before, message_type="agent"
-            )
+            
+            # Use smart context optimization if enabled
+            if self.settings.context_optimization_enabled:
+                messages = prepare_message_with_smart_context(
+                    agent_message, messages, message_type="agent"
+                )
+            else:
+                # Fallback to traditional transcript-based approach
+                transcript_before = self._load_conversation_transcript()
+                messages = prepare_message_with_history(
+                    agent_message, transcript_before, message_type="agent"
+                )
 
             logger.info("Processing execution agent results")
             summary = await self._run_interaction_loop(system_prompt, messages)

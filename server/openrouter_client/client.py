@@ -83,15 +83,38 @@ async def request_chat_completion(
     if cache_policy.decision != CacheDecision.DONT_CACHE:
         cached_response = _get_cached_response(cache_key)
         if cached_response is not None:
-            logger.debug(
-                "response cache hit",
+            logger.info(
+                "🎯 RESPONSE CACHE HIT",
                 extra={
                     "cache_key": cache_key[:16] + "...",
                     "policy": cache_policy.decision.value,
                     "confidence": cache_policy.confidence,
+                    "model": model,
+                    "cache_entries": len(_response_cache),
                 }
             )
             return cached_response
+        else:
+            logger.info(
+                "❌ RESPONSE CACHE MISS",
+                extra={
+                    "cache_key": cache_key[:16] + "...",
+                    "policy": cache_policy.decision.value,
+                    "confidence": cache_policy.confidence,
+                    "model": model,
+                    "cache_entries": len(_response_cache),
+                }
+            )
+    else:
+        logger.info(
+            "🚫 RESPONSE CACHE SKIPPED",
+            extra={
+                "cache_key": cache_key[:16] + "...",
+                "policy": cache_policy.decision.value,
+                "reason": cache_policy.reasoning,
+                "model": model,
+            }
+        )
 
     # Make API call
     payload: Dict[str, object] = {
@@ -166,12 +189,15 @@ def _cache_response(cache_key: str, response: Dict[str, Any], cache_policy) -> N
         _response_cache[cache_key] = response
         _cache_timestamps[cache_key] = time.time()
         
-        logger.debug(
-            "response cached",
+        logger.info(
+            "📥 RESPONSE CACHED",
             extra={
                 "cache_key": cache_key[:16] + "...",
                 "policy": cache_policy.decision.value,
                 "ttl_seconds": cache_policy.ttl_seconds,
+                "confidence": cache_policy.confidence,
+                "reason": cache_policy.reasoning,
+                "total_cache_entries": len(_response_cache),
             }
         )
 
@@ -181,7 +207,13 @@ def clear_response_cache() -> None:
     with _cache_lock:
         _response_cache.clear()
         _cache_timestamps.clear()
-        logger.info("response cache cleared")
+        logger.info(
+            "🗑️ RESPONSE CACHE CLEARED",
+            extra={
+                "cleared_entries": len(_response_cache),
+                "cache_size_before": len(_response_cache),
+            }
+        )
 
 
 def get_cache_stats() -> Dict[str, Any]:

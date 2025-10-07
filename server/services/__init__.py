@@ -17,6 +17,7 @@ from .gmail import (
     execute_gmail_tool,
     fetch_status,
     get_active_gmail_user_id,
+    get_gmail_seen_store,
     get_important_email_watcher,
     initiate_connect,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "execute_gmail_tool",
     "fetch_status",
     "get_active_gmail_user_id",
+    "get_gmail_seen_store",
     "get_important_email_watcher",
     "initiate_connect",
     "get_trigger_scheduler",

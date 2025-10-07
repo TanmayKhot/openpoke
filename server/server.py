@@ -6,8 +6,8 @@ import logging
 
 import uvicorn
 
-from .app import app
-from .config import get_settings
+from server.app import app
+from server.config import get_settings
 
 
 def main() -> None:

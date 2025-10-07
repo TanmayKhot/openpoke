@@ -43,8 +43,8 @@ class ExecutionAgentRuntime:
     async def execute(self, instructions: str) -> ExecutionResult:
         """Execute the agent with given instructions."""
         try:
-            # Build system prompt with history
-            system_prompt = self.agent.build_system_prompt_with_history()
+            # Build system prompt with smart context optimization
+            system_prompt = self.agent.build_system_prompt_with_smart_context(instructions)
 
             # Start conversation with the instruction
             messages = [{"role": "user", "content": instructions}]

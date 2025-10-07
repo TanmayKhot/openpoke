@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from ...services.execution import get_execution_agent_logs
+from ...services.conversation.context_optimizer import get_context_optimizer
+from ...config import get_settings
 from ...logging_config import logger
 
 
@@ -95,6 +97,65 @@ class ExecutionAgent:
 
         return base_prompt
 
+    # Build system prompt with smart context optimization
+    def build_system_prompt_with_smart_context(self, current_instruction: str) -> str:
+        """
+        Build system prompt with smart context optimization.
+        
+        Args:
+            current_instruction: Current instruction from interaction agent
+            
+        Returns:
+            System prompt with optimized history
+        """
+        base_prompt = self.build_system_prompt()
+        
+        # Get settings to check if optimization is enabled
+        settings = get_settings()
+        
+        if not settings.context_optimization_enabled:
+            # Fallback to traditional method
+            return self.build_system_prompt_with_history()
+        
+        # Load agent history as messages for optimization
+        try:
+            # Convert transcript to messages format for optimization
+            transcript = self._log_store.load_transcript(self.name)
+            if not transcript:
+                return base_prompt
+            
+            # Parse transcript into message-like format for optimization
+            messages = self._parse_transcript_to_messages(transcript)
+            
+            if not messages:
+                return base_prompt
+            
+            # Use context optimizer
+            optimizer = get_context_optimizer()
+            optimization_result = optimizer.optimize_context(
+                messages=messages,
+                current_query=current_instruction,
+                agent_type="execution"
+            )
+            
+            # Build optimized transcript from selected segments
+            optimized_transcript = self._build_optimized_execution_transcript(optimization_result)
+            
+            # Log optimization metrics
+            self._log_execution_context_optimization(optimization_result, current_instruction)
+            
+            if optimized_transcript:
+                return f"{base_prompt}\n\n# Execution History\n\n{optimized_transcript}"
+            else:
+                return base_prompt
+                
+        except Exception as exc:
+            logger.warning(
+                "execution agent context optimization failed, falling back to traditional method",
+                extra={"agent_name": self.name, "error": str(exc)}
+            )
+            return self.build_system_prompt_with_history()
+
     # Format current instruction as user message for LLM consumption
     def build_messages_for_llm(self, current_instruction: str) -> List[Dict[str, str]]:
         """
@@ -121,3 +182,100 @@ class ExecutionAgent:
         self._log_store.record_action(self.name, f"Calling {tool_name} with: {arguments[:200]}")
         # Record the tool response
         self._log_store.record_tool_response(self.name, tool_name, result[:500])
+
+    # Parse execution agent transcript into message-like format for optimization
+    def _parse_transcript_to_messages(self, transcript: str) -> List[Dict[str, str]]:
+        """Parse execution agent transcript into message format."""
+        import re
+        from ...models import ChatMessage
+        
+        messages = []
+        lines = transcript.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Parse different types of execution agent entries
+            if '<agent_request' in line:
+                # Extract content from agent request
+                content_match = re.search(r'<agent_request[^>]*>(.*?)</agent_request>', line, re.DOTALL)
+                if content_match:
+                    content = content_match.group(1).strip()
+                    if content:
+                        messages.append(ChatMessage(
+                            role="user",
+                            content=content,
+                            timestamp=""
+                        ))
+            elif '<agent_response' in line:
+                # Extract content from agent response
+                content_match = re.search(r'<agent_response[^>]*>(.*?)</agent_response>', line, re.DOTALL)
+                if content_match:
+                    content = content_match.group(1).strip()
+                    if content:
+                        messages.append(ChatMessage(
+                            role="assistant",
+                            content=content,
+                            timestamp=""
+                        ))
+            elif '<tool_call' in line or '<action' in line:
+                # Extract content from tool calls/actions
+                content_match = re.search(r'<[^>]+>(.*?)</[^>]+>', line, re.DOTALL)
+                if content_match:
+                    content = content_match.group(1).strip()
+                    if content:
+                        messages.append(ChatMessage(
+                            role="agent",
+                            content=f"Tool/Action: {content}",
+                            timestamp=""
+                        ))
+        
+        return messages
+
+    # Build optimized execution transcript from context optimization result
+    def _build_optimized_execution_transcript(self, optimization_result) -> str:
+        """Build execution transcript from optimized context segments."""
+        if not optimization_result.selected_segments:
+            return ""
+        
+        transcript_parts = []
+        for segment in optimization_result.selected_segments:
+            if segment.messages:
+                # Convert messages back to execution agent transcript format
+                segment_transcript = self._messages_to_execution_transcript(segment.messages)
+                transcript_parts.append(segment_transcript)
+        
+        return "\n\n".join(transcript_parts)
+
+    # Convert messages back to execution agent transcript format
+    def _messages_to_execution_transcript(self, messages) -> str:
+        """Convert messages back to execution agent transcript format."""
+        transcript_parts = []
+        for message in messages:
+            if message.role == "user":
+                transcript_parts.append(f"<agent_request>{message.content}</agent_request>")
+            elif message.role == "assistant":
+                transcript_parts.append(f"<agent_response>{message.content}</agent_response>")
+            elif message.role == "agent":
+                transcript_parts.append(f"<action>{message.content}</action>")
+        
+        return "\n".join(transcript_parts)
+
+    # Log execution context optimization metrics
+    def _log_execution_context_optimization(self, optimization_result, current_instruction: str) -> None:
+        """Log execution context optimization metrics."""
+        logger.info(
+            "execution agent context optimization applied",
+            extra={
+                "agent_name": self.name,
+                "strategy": optimization_result.optimization_strategy,
+                "original_messages": optimization_result.original_message_count,
+                "optimized_messages": optimization_result.optimized_message_count,
+                "compression_ratio": optimization_result.compression_ratio,
+                "estimated_tokens": optimization_result.total_tokens_estimate,
+                "segments_count": len(optimization_result.selected_segments),
+                "instruction_length": len(current_instruction),
+            }
+        )

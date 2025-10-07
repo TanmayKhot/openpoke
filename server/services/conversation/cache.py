@@ -72,21 +72,39 @@ class ConversationCache:
                 # Move to end (most recently used)
                 self._cache.move_to_end(conversation_id)
                 
-                logger.debug(
-                    "conversation cache hit",
-                    extra={
-                        "conversation_id": conversation_id,
-                        "access_count": entry.access_count,
-                        "cached_messages": len(entry.messages),
-                    }
-                )
+                # Only log cache hits for user-initiated requests, not background processes
+                if entry.access_count <= 5:  # First few accesses are likely user-initiated
+                    logger.info(
+                        "🎯 CONVERSATION CACHE HIT",
+                        extra={
+                            "conversation_id": conversation_id,
+                            "access_count": entry.access_count,
+                            "cached_messages": len(entry.messages),
+                            "cache_size_mb": round(self._current_memory_bytes / (1024 * 1024), 2),
+                            "cache_entries": len(self._cache),
+                        }
+                    )
+                else:
+                    # Log debug level for frequent background access
+                    logger.debug(
+                        "🎯 CONVERSATION CACHE HIT (background)",
+                        extra={
+                            "conversation_id": conversation_id,
+                            "access_count": entry.access_count,
+                            "cached_messages": len(entry.messages),
+                        }
+                    )
                 
                 return entry.messages
             
             # Cache miss - load from disk
-            logger.debug(
-                "conversation cache miss",
-                extra={"conversation_id": conversation_id}
+            logger.info(
+                "❌ CONVERSATION CACHE MISS",
+                extra={
+                    "conversation_id": conversation_id,
+                    "cache_size_mb": round(self._current_memory_bytes / (1024 * 1024), 2),
+                    "cache_entries": len(self._cache),
+                }
             )
             
             messages = self._load_from_disk(conversation_id)
@@ -106,11 +124,13 @@ class ConversationCache:
                 messages = self._load_from_disk(conversation_id)
                 self._add_to_cache(conversation_id, messages)
                 
-                logger.debug(
-                    "conversation preloaded",
+                logger.info(
+                    "🔄 CONVERSATION PRELOADED",
                     extra={
                         "conversation_id": conversation_id,
                         "messages_count": len(messages),
+                        "cache_entries": len(self._cache),
+                        "total_cache_mb": round(self._current_memory_bytes / (1024 * 1024), 2),
                     }
                 )
     
@@ -126,10 +146,32 @@ class ConversationCache:
                 entry = self._cache.pop(conversation_id)
                 self._current_memory_bytes -= entry.size_bytes
                 
-                logger.debug(
-                    "conversation cache invalidated",
-                    extra={"conversation_id": conversation_id}
+                logger.info(
+                    "🗑️ CONVERSATION CACHE INVALIDATED",
+                    extra={
+                        "conversation_id": conversation_id,
+                        "freed_mb": round(entry.size_bytes / (1024 * 1024), 2),
+                        "remaining_cache_mb": round(self._current_memory_bytes / (1024 * 1024), 2),
+                        "remaining_entries": len(self._cache),
+                    }
                 )
+    
+    def clear(self) -> None:
+        """Clear all cached conversations."""
+        with self._lock:
+            entries_cleared = len(self._cache)
+            memory_freed = self._current_memory_bytes
+            
+            self._cache.clear()
+            self._current_memory_bytes = 0
+            
+            logger.info(
+                "🗑️ CONVERSATION CACHE CLEARED",
+                extra={
+                    "entries_cleared": entries_cleared,
+                    "memory_freed_mb": round(memory_freed / (1024 * 1024), 2),
+                }
+            )
     
     def get_cache_stats(self) -> Dict[str, any]:
         """Get cache statistics."""
@@ -192,11 +234,13 @@ class ConversationCache:
             oldest_id, oldest_entry = self._cache.popitem(last=False)
             self._current_memory_bytes -= oldest_entry.size_bytes
             
-            logger.debug(
-                "conversation cache evicted",
+            logger.info(
+                "🗑️ CONVERSATION CACHE EVICTED",
                 extra={
                     "evicted_id": oldest_id,
-                    "evicted_size_mb": oldest_entry.size_bytes / (1024 * 1024),
+                    "evicted_size_mb": round(oldest_entry.size_bytes / (1024 * 1024), 2),
+                    "evicted_access_count": oldest_entry.access_count,
+                    "remaining_cache_mb": round(self._current_memory_bytes / (1024 * 1024), 2),
                 }
             )
         
@@ -204,13 +248,15 @@ class ConversationCache:
         self._cache[conversation_id] = entry
         self._current_memory_bytes += size_bytes
         
-        logger.debug(
-            "conversation added to cache",
+        logger.info(
+            "📥 CONVERSATION ADDED TO CACHE",
             extra={
                 "conversation_id": conversation_id,
                 "messages_count": len(messages),
-                "size_mb": size_bytes / (1024 * 1024),
-                "cache_size": len(self._cache),
+                "size_mb": round(size_bytes / (1024 * 1024), 2),
+                "cache_entries": len(self._cache),
+                "total_cache_mb": round(self._current_memory_bytes / (1024 * 1024), 2),
+                "memory_usage_percent": round((self._current_memory_bytes / self.max_memory_bytes) * 100, 1),
             }
         )
     

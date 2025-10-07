@@ -76,6 +76,17 @@ class Settings(BaseModel):
     conversation_cache_max_entries: int = Field(default=100)
     response_cache_mb: int = Field(default=256)
     response_cache_max_entries: int = Field(default=500)
+    
+    # Context Optimization Settings
+    context_optimization_enabled: bool = Field(default=True)
+    context_max_tokens: int = Field(default=8000)
+    context_recent_messages_count: int = Field(default=10)
+    context_min_relevance_threshold: float = Field(default=0.3)
+    context_compression_enabled: bool = Field(default=True)
+    
+    # Gmail Background Processing Settings
+    gmail_poll_interval_seconds: int = Field(default=_env_int("GMAIL_POLL_INTERVAL_SECONDS", 60))
+    gmail_lookback_minutes: int = Field(default=_env_int("GMAIL_LOOKBACK_MINUTES", 10))
 
     @property
     def cors_allow_origins(self) -> List[str]:

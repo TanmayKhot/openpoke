@@ -237,7 +237,12 @@ _watcher_instance: Optional[ImportantEmailWatcher] = None
 def get_important_email_watcher() -> ImportantEmailWatcher:
     global _watcher_instance
     if _watcher_instance is None:
-        _watcher_instance = ImportantEmailWatcher()
+        from ...config import get_settings
+        settings = get_settings()
+        _watcher_instance = ImportantEmailWatcher(
+            poll_interval_seconds=settings.gmail_poll_interval_seconds,
+            lookback_minutes=settings.gmail_lookback_minutes
+        )
     return _watcher_instance
 
 

@@ -47,3 +47,6 @@ server/plans/
 
 # Test files with sensitive information
 test-composio.py
+
+# Memory optimization plan
+plan.txt

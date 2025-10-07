@@ -18,3 +18,6 @@ def configure_logging() -> None:
 
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    
+    # Ensure our cache and context optimization logs are visible
+    logging.getLogger("openpoke.server").setLevel(logging.INFO)

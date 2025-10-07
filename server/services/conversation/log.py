@@ -85,6 +85,17 @@ class ConversationLog:
 
     def _append(self, tag: str, payload: str) -> str:
         timestamp = now_in_user_timezone("%Y-%m-%d %H:%M:%S")
+        
+        # Check if incognito mode is enabled - if so, don't write to disk
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if is_incognito_mode_enabled():
+                logger.info("Incognito mode enabled - skipping disk write for conversation log")
+                return timestamp
+        except ImportError:
+            # Fallback if secret mode module is not available
+            pass
+        
         entry = self._formatter(tag, timestamp, str(payload))
         with self._lock:
             try:
@@ -152,26 +163,121 @@ class ConversationLog:
         return "\n".join(parts)
 
     def record_user_message(self, content: str) -> None:
+        # Check if incognito mode is enabled
+        try:
+            from ..secret_mode import is_incognito_mode_enabled, add_to_session_memory
+            if is_incognito_mode_enabled():
+                # Add to session memory instead of persistent memory
+                add_to_session_memory("user", content)
+                logger.info("Incognito mode enabled - user message saved to session memory only")
+                return
+        except ImportError:
+            # Fallback if secret mode module is not available
+            pass
+            
         timestamp = self._append("user_message", content)
-        self._working_memory_log.append_entry("user_message", content, timestamp)
-        self._invalidate_cache()
+        # Only update working memory if not in incognito mode
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if not is_incognito_mode_enabled():
+                self._working_memory_log.append_entry("user_message", content, timestamp)
+        except ImportError:
+            # Fallback if secret mode module is not available
+            self._working_memory_log.append_entry("user_message", content, timestamp)
+        # Only invalidate cache if not in incognito mode (since we're not saving to persistent storage)
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if not is_incognito_mode_enabled():
+                self._invalidate_cache()
+        except ImportError:
+            # Fallback if secret mode module is not available
+            self._invalidate_cache()
 
     def record_agent_message(self, content: str) -> None:
+        # Check if incognito mode is enabled
+        try:
+            from ..secret_mode import is_incognito_mode_enabled, add_to_session_memory
+            if is_incognito_mode_enabled():
+                # Add to session memory instead of persistent memory
+                add_to_session_memory("assistant", content)
+                logger.info("Incognito mode enabled - agent message saved to session memory only")
+                return
+        except ImportError:
+            # Fallback if secret mode module is not available
+            pass
+            
         timestamp = self._append("agent_message", content)
-        self._working_memory_log.append_entry("agent_message", content, timestamp)
-        self._invalidate_cache()
+        # Only update working memory if not in incognito mode
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if not is_incognito_mode_enabled():
+                self._working_memory_log.append_entry("agent_message", content, timestamp)
+        except ImportError:
+            # Fallback if secret mode module is not available
+            self._working_memory_log.append_entry("agent_message", content, timestamp)
+        # Only invalidate cache if not in incognito mode (since we're not saving to persistent storage)
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if not is_incognito_mode_enabled():
+                self._invalidate_cache()
+        except ImportError:
+            # Fallback if secret mode module is not available
+            self._invalidate_cache()
 
     def record_reply(self, content: str) -> None:
+        # Check if incognito mode is enabled
+        try:
+            from ..secret_mode import is_incognito_mode_enabled, add_to_session_memory
+            if is_incognito_mode_enabled():
+                # Add to session memory instead of persistent memory
+                add_to_session_memory("assistant", content)
+                logger.info("Incognito mode enabled - reply saved to session memory only")
+                return
+        except ImportError:
+            # Fallback if secret mode module is not available
+            pass
+            
         timestamp = self._append("poke_reply", content)
-        self._working_memory_log.append_entry("poke_reply", content, timestamp)
-        self._invalidate_cache()
+        # Only update working memory if not in incognito mode
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if not is_incognito_mode_enabled():
+                self._working_memory_log.append_entry("poke_reply", content, timestamp)
+        except ImportError:
+            # Fallback if secret mode module is not available
+            self._working_memory_log.append_entry("poke_reply", content, timestamp)
+        # Only invalidate cache if not in incognito mode (since we're not saving to persistent storage)
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if not is_incognito_mode_enabled():
+                self._invalidate_cache()
+        except ImportError:
+            # Fallback if secret mode module is not available
+            self._invalidate_cache()
 
     def record_wait(self, reason: str) -> None:
         """Record a wait marker that should not reach the user-facing chat history."""
         timestamp = self._append("wait", reason)
-        self._working_memory_log.append_entry("wait", reason, timestamp)
+        # Only update working memory if not in incognito mode
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if not is_incognito_mode_enabled():
+                self._working_memory_log.append_entry("wait", reason, timestamp)
+        except ImportError:
+            # Fallback if secret mode module is not available
+            self._working_memory_log.append_entry("wait", reason, timestamp)
 
     def _notify_summarization(self) -> None:
+        # Don't trigger summarization in incognito mode
+        try:
+            from ..secret_mode import is_incognito_mode_enabled
+            if is_incognito_mode_enabled():
+                logger.info("Incognito mode enabled - skipping summarization")
+                return
+        except ImportError:
+            # Fallback if secret mode module is not available
+            pass
+        
         settings = get_settings()
         if not settings.summarization_enabled:
             return
@@ -195,6 +301,35 @@ class ConversationLog:
 
     def to_chat_messages(self) -> List[ChatMessage]:
         """Get chat messages, using cache when available."""
+        # Check if incognito mode is enabled
+        try:
+            from ..secret_mode import is_incognito_mode_enabled, get_session_memory
+            if is_incognito_mode_enabled():
+                # In incognito mode, combine persistent memory with session memory
+                persistent_messages = self._get_persistent_messages()
+                session_messages = get_session_memory()
+                
+                # Convert session messages to ChatMessage format
+                session_chat_messages = [
+                    ChatMessage(
+                        role=msg["role"], 
+                        content=msg["content"], 
+                        timestamp=msg.get("timestamp")
+                    )
+                    for msg in session_messages
+                ]
+                
+                # Return persistent + session messages
+                return persistent_messages + session_chat_messages
+        except ImportError:
+            # Fallback if secret mode module is not available
+            pass
+
+        # Normal mode: try cache first, then disk
+        return self._get_persistent_messages()
+
+    def _get_persistent_messages(self) -> List[ChatMessage]:
+        """Get messages from persistent storage (cache or disk)."""
         # Try to get from cache first
         try:
             cache = self._get_cache()

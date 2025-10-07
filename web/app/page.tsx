@@ -46,6 +46,8 @@ export default function Page() {
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
   const [previousAssistantMessageCount, setPreviousAssistantMessageCount] = useState(0);
   const [showNotificationIndicator, setShowNotificationIndicator] = useState(false);
+  const [isIncognitoMode, setIsIncognitoMode] = useState(false);
+  const [memoryReset, setMemoryReset] = useState(false);
   const { scrollContainerRef, handleScroll } = useAutoScroll({
     items: messages,
     isWaiting: isWaitingForResponse,
@@ -77,6 +79,9 @@ export default function Page() {
   }, [previousAssistantMessageCount, settings.notificationSoundEnabled, settings.notificationSoundVolume]);
 
   const loadHistory = useCallback(async () => {
+    // Don't load history if memory was reset
+    if (memoryReset) return;
+    
     try {
       const res = await fetch('/api/chat/history', { cache: 'no-store' });
       if (!res.ok) return;
@@ -88,7 +93,7 @@ export default function Page() {
       if (err?.name === 'AbortError') return;
       console.error('Failed to load chat history', err);
     }
-  }, [checkForNewAssistantMessages]);
+  }, [checkForNewAssistantMessages, memoryReset]);
 
   useEffect(() => {
     void loadHistory();
@@ -209,7 +214,7 @@ export default function Page() {
           if (pollAttempts < maxPollAttempts) {
             setTimeout(pollForAssistantResponse, 1000); // Poll every second
           } else {
-            // Timeout - stop loading and update messages anyway
+            // Timeout - stop loading and reload history
             setIsWaitingForResponse(false);
             await loadHistory();
           }
@@ -219,25 +224,43 @@ export default function Page() {
         setTimeout(pollForAssistantResponse, 1000);
       }
     },
-    [loadHistory],
+    [loadHistory, checkForNewAssistantMessages],
   );
 
-  const handleClearHistory = useCallback(async () => {
+
+  const handleMemoryReset = useCallback(async () => {
     try {
-      const res = await fetch('/api/chat/history', { method: 'DELETE' });
+      const res = await fetch('/api/memory/reset', { method: 'POST' });
       if (!res.ok) {
-        console.error('Failed to clear chat history', res.statusText);
+        console.error('Failed to reset memory', res.statusText);
         return;
       }
+      // Clear messages from UI after successful memory reset
       setMessages([]);
+      // Set memory reset flag to prevent loading history
+      setMemoryReset(true);
     } catch (err) {
-      console.error('Failed to clear chat history', err);
+      console.error('Failed to reset memory', err);
     }
-  }, [setMessages]);
+  }, []);
 
-  const triggerClearHistory = useCallback(() => {
-    void handleClearHistory();
-  }, [handleClearHistory]);
+  const handleToggleIncognitoMode = useCallback(async () => {
+    try {
+      const action = isIncognitoMode ? 'resume' : 'pause';
+      const res = await fetch('/api/memory', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      if (!res.ok) {
+        console.error('Failed to toggle incognito mode', res.statusText);
+        return;
+      }
+      setIsIncognitoMode(!isIncognitoMode);
+    } catch (err) {
+      console.error('Failed to toggle incognito mode', err);
+    }
+  }, [isIncognitoMode]);
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -260,7 +283,12 @@ export default function Page() {
   return (
     <main className="chat-bg min-h-screen p-4 sm:p-6">
       <div className="chat-wrap flex flex-col">
-        <ChatHeader onOpenSettings={openSettings} onClearHistory={triggerClearHistory} />
+        <ChatHeader 
+          onOpenSettings={openSettings} 
+          onMemoryReset={handleMemoryReset}
+          onToggleMemoryPause={handleToggleIncognitoMode}
+          isMemoryPaused={isIncognitoMode}
+        />
 
         <div className="card flex-1 overflow-hidden">
           <ChatMessages

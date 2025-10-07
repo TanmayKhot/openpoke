@@ -6,6 +6,20 @@ OpenPoke is a simplified, open-source take on [Interaction Company’s](https://
 - Gmail tooling via [Composio](https://composio.dev/) for drafting/replying/forwarding without leaving chat.
 - Trigger scheduler and background watchers for reminders and "important email" alerts.
 - Next.js web UI that proxies everything through the shared `.env`, so plugging in API keys is the only setup.
+- **Incognito Chat Mode** - Toggle between normal and incognito modes for private conversations that aren't permanently stored.
+
+## Features
+
+### 🔒 Incognito Chat Mode
+OpenPoke includes a privacy-focused incognito mode that allows users to have conversations without permanent storage:
+
+- **Normal Mode**: All conversations are saved to persistent memory and can be recalled later
+- **Incognito Mode**: New conversations are stored only in temporary session memory
+- **Smart Memory Management**: Access to previously saved data is maintained even in incognito mode
+- **Automatic Cleanup**: Session memory is cleared when exiting incognito mode
+- **Easy Toggle**: Simple UI button to switch between modes
+
+This feature is perfect for sensitive conversations, testing, or when you want to explore the assistant without cluttering your conversation history.
 
 ## Requirements
 - Python 3.10+

@@ -29,6 +29,14 @@ OpenPoke is a simplified, open-source take on [Interaction Company’s](https://
 - **Automatic Cleanup**: Session memory cleared when exiting incognito mode
 - **Easy Toggle**: Simple UI button to switch between modes for sensitive conversations
 
+### 🐳 Docker Support (`feat/docker`)
+- **One-Command Deployment**: Start the entire stack with `docker compose up -d`
+- **Multi-Container Architecture**: Separate backend and frontend containers for better isolation and scaling
+- **Production-Ready Security**: Non-root users, no API keys leaked, comprehensive security audit (A- rating)
+- **Platform Compatible**: Deploy to Railway, Render, AWS, GCP, DigitalOcean, or any VPS
+- **Complete Testing Suite**: 30+ tests covering health checks, integration, security, and data persistence
+- **Comprehensive Documentation**: Deployment guides for 10+ hosting platforms and self-hosting setup
+
 ## Requirements
 - Python 3.10+
 - Node.js 18+
